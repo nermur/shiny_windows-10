@@ -1,9 +1,14 @@
+@echo off
 :: TODO list:
 :: * Disable initial lock screen (go straight to login)
 
 :: If Jumbo Packets being disabled concerns you, look into what else is changed before using it.
 set /A network_adapter_tweaks=1
+:: Installs .NET Framework 2 and 3.5 for backwards compatibility
+set /A install_dotnet_2_and_3=1
 set /A gpu_tweaks=1
+:: Terrible at video recording; other use cases go ignored
+set /A disable_game_bar=1
 :: How to stay secure: Keep the amount of software installed to a minimum (what you need), keep JavaScript disabled on as many websites as possible (using uMatrix or NoScript), and consider which comforts to cut off (such as Spotify) 
 set /A disable_mitigations=1
 :: Routing through IPv6 is still worse than IPv4 in California (higher latency/ping)
@@ -17,42 +22,61 @@ reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
 	echo Right click on this file and select 'Run as administrator'
 	echo Press any key to exit...
-	pause >nul
+	Pause>nul
 	exit /b
 )
 
 cls
-echo ==== Instructions ====
-echo 1. Configure the options inside this batch file
-echo.
-echo 2. If using an Intel ethernet adapter, install its drivers now: https://downloadcenter.intel.com/download/25016/
-echo.
-echo 3. Temporarily disable all anti-virus/anti-malware software before proceeding
-echo.
-echo 4. Install Process Lasso from Bitsum for better thread scheduling and the best power plan ("Bitsum Highest Performance")
-echo.
-echo.
-pause
-cd %SystemRoot%\System32
+sc.exe start ClipSVC
+sc.exe query "AppXSvc"|Find "STATE"|Find /v "STOPPED">nul||(
+		reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 0 /f
+		sc.exe query "ClipSVC"|Find "STATE"|Find /v "STOPPED">nul||(
+			reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 0 /f
+		)
+	echo.
+	echo ClipSVC and AppXSvc weren't active, so they've been enabled.
+	echo No other changes have been made.
+	echo After the reboot, run this script again.
+	echo.
+	Pause
+	shutdown.exe /r /t 00
+	Pause>nul
 
+)
 sc.exe query "ClipSVC"|Find "STATE"|Find /v "STOPPED">nul||(
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 0 /f
 	sc.exe query "AppXSvc"|Find "STATE"|Find /v "STOPPED">nul||(
 		reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 0 /f
 	)
 	echo.
-	echo ClipSVC & AppXSvc must be active, and have been enabled for next boot.
-	echo Due to them previously not being active, no other changes have been made.
+	echo ClipSVC and AppXSvc weren't active, so they've been enabled.
+	echo No other changes have been made.
 	echo After the reboot, run this script again.
+	echo.
 	Pause
 	shutdown.exe /r /t 00
+	Pause>nul
 )
+
+cls
+echo ==== Instructions ====
+echo.
+echo 1. If using an Intel ethernet adapter, install its drivers now: https://downloadcenter.intel.com/download/25016/
+echo.
+echo 2. Temporarily disable all anti-virus/anti-malware software before proceeding
+echo.
+echo 3. Install Process Lasso from Bitsum for better thread scheduling and the best power plan ("Bitsum Highest Performance")
+echo.
+echo 4. Insider builds will be disabled; never enable it back, as it will revert many changes you do, and revert this script
+echo.
+Pause
+cd %SystemRoot%\System32
 
 :: Won't make a restore point if there's already one within the past 24 hours
 WMIC.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "Before applying the Shiny Windows script", 100, 7
 
 :: Activation is required for some changes; this requires ClipSVC to correctly activate
-start /HIGH .\KMS38_Activation.cmd
+start /HIGH /WAIT %~dp0\KMS38_Activation.cmd
 
 :: ! Auto-run once every boot: START !
 :: Full Screen Optimizations
@@ -194,6 +218,10 @@ if %network_adapter_tweaks%==1 (
 	netsh.exe int tcp set global rss=disabled
 	netsh.exe int tcp set global rsc=disabled
 )
+if %install_dotnet_2_and_3%==1 (
+	dism.exe /online /enable-feature /featurename:NetFX3
+)
+
 if %gpu_tweaks%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" /v "HwSchMode" /t REG_DWORD /d 2 /f
 	:: https://nvidia.custhelp.com/app/answers/detail/a_id/5157
@@ -237,10 +265,7 @@ reg.exe delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense" /f
 
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Office\OfficeTelemetryAgentFallBack"
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Office\OfficeTelemetryAgentLogOn"
-schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64 Critical"
-schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64"
-schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 Critical"
-schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319"
+
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\AppID\SmartScreenSpecific"
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser"
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\Application Experience\ProgramDataUpdater"
@@ -333,24 +358,37 @@ del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*.*
 attrib +R C:\Windows\System32\SleepStudy\UserNotPresentSession.etl
 
 schtasks.exe /Create /TR "cmd /c shutdown /r /t 10 /f & schtasks.exe /Delete /F /TN Reboot" /RU Administrator /TN Reboot /SC ONLOGON /IT /V1 /Z
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "NetOptimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "NetOptimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "NetOptimize3" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize3 /SC ONLOGON /IT"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "NetOptimize4" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize4 /SC ONLOGON /IT"
+
+if exist "C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe" (
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET20_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET20_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET20_Optimize3 /SC ONLOGON /IT"
+)
+
+if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe" (
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET40_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET40_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET40_Optimize3 /SC ONLOGON /IT"
+	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64 Critical"
+	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64"
+	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 Critical"
+	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319"
+)
+
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "sfc" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min sfc /scannow ^& schtasks.exe /Delete /F /TN sfc\" /RU Administrator /TN sfc /SC ONLOGON /IT"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "clearpagefile" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\" /v ClearPageFileAtShutdown /t REG_DWORD /d 0 /f"
+
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger1" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiDriverIHVSession\" /v Start /t REG_DWORD /d 0 /f"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger2" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiDriverIHVSessionRepro\" /v Start /t REG_DWORD /d 0 /f"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger3" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiSession\" /v Start /t REG_DWORD /d 0 /f"
 
 :: Disable Game Bar
-reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKCU\SOFTWARE\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AudioCaptureEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "CursorCaptureEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "MicrophoneCaptureEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
+if %disable_game_bar%==1 (
+	reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AudioCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "CursorCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "MicrophoneCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
+)
 
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices1" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\Themes\" /v Start /t REG_DWORD /d 4 /f"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices2" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\AppReadiness\" /v Start /t REG_DWORD /d 4 /f"
@@ -375,6 +413,9 @@ if %ntfs_tweaks%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\I/O System" /v "IoBlockLegacyFsFilters" /t REG_DWORD /d 1 /f
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\FileHistory\File History (maintenance mode)"
 )
+
+:: A worthless security measure, just use disk encryption
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v ClearPageFileAtShutdown /t REG_DWORD /d 0 /f
 
 :: Disable JPEG wallpaper quality reduction
 reg.exe add "HKCU\Control Panel\Desktop" /v "JPEGImportQuality" /t REG_DWORD /d "100" /f
@@ -512,5 +553,6 @@ taskkill.exe /IM explorer.exe /F
 start explorer.exe
 echo.
 echo Your PC will restart after a key is pressed; required to fully apply changes
+echo.
 Pause
 shutdown.exe /r /t 00
