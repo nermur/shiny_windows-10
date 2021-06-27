@@ -360,20 +360,18 @@ attrib +R C:\Windows\System32\SleepStudy\UserNotPresentSession.etl
 schtasks.exe /Create /TR "cmd /c shutdown /r /t 10 /f & schtasks.exe /Delete /F /TN Reboot" /RU Administrator /TN Reboot /SC ONLOGON /IT /V1 /Z
 
 if exist "C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe" (
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET20_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET20_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET20_Optimize3 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET20_Optimize3 /SC ONLOGON /IT"
 )
 
 if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe" (
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET40_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DOTNET40_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET40_Optimize3 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET40_Optimize3 /SC ONLOGON /IT"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64 Critical"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 Critical"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319"
 )
-
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "sfc" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min sfc /scannow ^& schtasks.exe /Delete /F /TN sfc\" /RU Administrator /TN sfc /SC ONLOGON /IT"
 
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger1" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiDriverIHVSession\" /v Start /t REG_DWORD /d 0 /f"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger2" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiDriverIHVSessionRepro\" /v Start /t REG_DWORD /d 0 /f"
@@ -390,12 +388,12 @@ if %disable_game_bar%==1 (
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
 )
 
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices1" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\Themes\" /v Start /t REG_DWORD /d 4 /f"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices2" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\AppReadiness\" /v Start /t REG_DWORD /d 4 /f"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices3" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker\" /v Start /t REG_DWORD /d 4 /f"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices4" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\vdrvroot\" /v Start /t REG_DWORD /d 4 /f"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices5" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\volmgrx\" /v Start /t REG_DWORD /d 4 /f"
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disablepostservices6" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\Wof\" /v Start /t REG_DWORD /d 3 /f"
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Themes" /v Start /t REG_DWORD /d 4 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppReadiness" /v Start /t REG_DWORD /d 4 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v Start /t REG_DWORD /d 4 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\vdrvroot" /v Start /t REG_DWORD /d 4 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\volmgrx" /v Start /t REG_DWORD /d 4 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Wof" /v Start /t REG_DWORD /d 3 /f
 
 bcdedit.exe /set disabledynamictick yes
 bcdedit.exe /set uselegacyapicmode no
@@ -468,7 +466,7 @@ reg.exe delete "HKCU\SOFTWARE\Microsoft\Internet Explorer\LowRegistry\Audio\Poli
 :: # Adjust Visual Effects to optimal values #
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFXSetting" /t REG_DWORD /d 2 /f
 :: Set to 'Performance' before, now using 'Custom'
-reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFXSetting" /t REG_DWORD /d "3" /f
+reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFXSetting" /t REG_DWORD /d 3 /f
 :: Show window contents while dragging
 reg.exe add "HKCU\Control Panel\Desktop" /v "DragFullWindows" /t REG_SZ /d 1 /f
 :: Smooth edges of screen fonts
