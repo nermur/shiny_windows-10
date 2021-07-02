@@ -30,9 +30,10 @@ reg.exe query HKU\S-1-5-19 || (
 
 :: If there was a scheduled reboot, deny it from now and in the future.
 takeown /R /F C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
-del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\
-del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*.*
-copy /y NUL C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Update
+del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*
+copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot
+copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_AC
+copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_Battery
 icacls "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
 
 :: If these are disabled, Windows Update will break and so will this script.
