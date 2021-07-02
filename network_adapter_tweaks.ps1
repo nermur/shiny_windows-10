@@ -28,6 +28,12 @@ Set-NetAdapterAdvancedProperty -Name '*' -DisplayName 'UDP Checksum Offload (IPv
 Set-NetAdapterAdvancedProperty -Name '*' -DisplayName 'UDP Checksum Offload (IPv6)' -RegistryValue '0'
 Set-NetAdapterAdvancedProperty -Name '*' -DisplayName 'Ultra Low Power Mode' -RegistryValue '0'
 Set-NetAdapterAdvancedProperty -Name '*' -DisplayName 'Speed "&" Duplex' -RegistryValue '6'
+Set-NetAdapterBinding -Name '*' -DisplayName 'Microsoft LLDP Protocol Driver' -Enabled '0'
+Set-NetAdapterBinding -Name '*' -DisplayName 'Link-Layer Topology Discovery Responder' -Enabled '0'
+Set-NetAdapterBinding -Name '*' -DisplayName 'Link-Layer Topology Discovery Mapper I/O Driver' -Enabled '0'
+Set-NetAdapterBinding -Name '*' -DisplayName 'QoS Packet Scheduler' -Enabled '0'
+Set-NetAdapterBinding -Name '*' -DisplayName 'Hyper-V Extensible Virtual Switch' -Enabled '0'
+Set-NetIPinterface -EcnMarking '1'
 Set-NetTCPSetting -SettingName internet -EcnCapability enabled
 Set-NetOffloadGlobalSetting -ReceiveSideScaling disabled
 Set-NetOffloadGlobalSetting -ReceiveSegmentCoalescing disabled

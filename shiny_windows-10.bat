@@ -12,11 +12,13 @@ set /A disable_game_bar=1
 :: How to stay secure: Keep the amount of software installed to a minimum (what you need), keep JavaScript disabled on as many websites as possible (using uMatrix or NoScript), and consider which comforts to cut off (such as Spotify) 
 set /A disable_mitigations=1
 :: Routing through IPv6 is still worse than IPv4 in California (higher latency/ping)
-set /A disable_ipv6=1
+set /A disable_ipv6=0
 :: Can be reverted with 'sfc /scannow'; used to entirely disable Windows Defender
 set /A delete_windows_security=1
 :: Makes disks using the default file system (NTFS) faster, but disables File History and File Access Dates
 set /A ntfs_tweaks=1
+:: Disables GPS services, which always run even if there's no GPS hardware installed
+set /A disable_geolocation=1
 
 reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
@@ -26,37 +28,20 @@ reg.exe query HKU\S-1-5-19 || (
 	exit /b
 )
 
-cls
-sc.exe start ClipSVC
-sc.exe query "AppXSvc"|Find "STATE"|Find /v "STOPPED">nul||(
-		reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 0 /f
-		sc.exe query "ClipSVC"|Find "STATE"|Find /v "STOPPED">nul||(
-			reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 0 /f
-		)
-	echo.
-	echo ClipSVC and AppXSvc weren't active, so they've been enabled.
-	echo No other changes have been made.
-	echo After the reboot, run this script again.
-	echo.
-	Pause
-	shutdown.exe /r /t 00
-	Pause>nul
+:: If there was a scheduled reboot, deny it from now and in the future.
+takeown /R /F C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
+del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\
+del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*.*
+copy /y NUL C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Update
+icacls "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
 
-)
-sc.exe query "ClipSVC"|Find "STATE"|Find /v "STOPPED">nul||(
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 0 /f
-	sc.exe query "AppXSvc"|Find "STATE"|Find /v "STOPPED">nul||(
-		reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 0 /f
-	)
-	echo.
-	echo ClipSVC and AppXSvc weren't active, so they've been enabled.
-	echo No other changes have been made.
-	echo After the reboot, run this script again.
-	echo.
-	Pause
-	shutdown.exe /r /t 00
-	Pause>nul
-)
+:: If these are disabled, Windows Update will break and so will this script.
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 3 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 3 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 3 /f
+sc.exe start AppXSvc
+sc.exe start ClipSVC
+sc.exe start MpsSvc
 
 cls
 echo ==== Instructions ====
@@ -136,7 +121,7 @@ reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy" /v "Tailore
 :: Disable synchronization of all settings to Microsoft
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\SettingSync" /v "SyncPolicy" /t REG_DWORD /d 5 /f
 :: Disable Input Personalization
-reg.exe add "HKCU\SOFTWARE\Microsoft\Personalization\Settings" /v "AcceptedPrivacyPolicyy" /t REG_DWORD /d 0 /f
+reg.exe add "HKCU\SOFTWARE\Microsoft\Personalization\Settings" /v "AcceptedPrivacyPolicy" /t REG_DWORD /d 0 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\InputPersonalization" /v "RestrictImplicitInkCollection" /t REG_DWORD /d 1 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\InputPersonalization" /v "RestrictImplicitTextCollection" /t REG_DWORD /d 1 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" /v "HarvestContacts" /t REG_DWORD /d 0 /f
@@ -144,11 +129,6 @@ reg.exe add "HKCU\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" /v "
 :: Disable updates for Speech Recognition and Speech Synthesis
 reg.exe add "HKLM\SOFTWARE\Microsoft\Speech_OneCore\Preferences" /v "ModelDownloadAllowed" /t REG_DWORD /d 0 /f
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Speech" /v "AllowSpeechModelUpdate" /t REG_DWORD /d 0 /f
-
-:: Disable functionality to locate the system
-reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocation" /t REG_DWORD /d 1 /f
-reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableWindowsLocationProvider" /t REG_DWORD /d 1 /f
-reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocationScripting" /t REG_DWORD /d 1 /f
 
 :: Disable peer-to-peer functionality in Windows Update
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config" /v "DODownloadMode" /t REG_DWORD /d 0 /f
@@ -192,22 +172,9 @@ reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v "Connec
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v "AllowSearchToUseLocation" /t REG_DWORD /d 0 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" /v "BingSearchEnabled" /t REG_DWORD /d 0 /f
 
-:: WILL break Windows Update as it prevents .appx from working, which is not similar to how 2019 LTSC is; this is never recommended
-:: Left here to remind the author about this for a specific reason
-::if %disable_appx_support%==1 (
-::	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DisableAppx1" /t REG_SZ /f /d "reg.exe add \"HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc\" /v Start /t REG_DWORD /d 4 /f"
-::	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "DisableAppx2" /t REG_SZ /f /d "reg.exe add "\HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC\" /v Start /t REG_DWORD /d 4 /f"
-::)
-
 :: Tuned specifically for lowest latency variance (gaming)
 if %network_adapter_tweaks%==1 (
 	powershell.exe -Command ".\network_adapter_tweaks.ps1"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "protocol2" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'Microsoft LLDP Protocol Driver' -Enabled 0"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "protocol3" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'Link-Layer Topology Discovery Responder' -Enabled 0"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "protocol4" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'Link-Layer Topology Discovery Mapper I/O Driver' -Enabled 0"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "protocol5" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'QoS Packet Scheduler' -Enabled 0"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "protocol6" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'Hyper-V Extensible Virtual Switch' -Enabled 0"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "ecn" /t REG_SZ /f /d "powershell -Command Set-NetIPinterface -EcnMarking '1'"
 	:: Don't allow the Multimedia Class Scheduler Service to throttle
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" /v "NetworkThrottlingIndex" /t REG_DWORD /d 4294967295 /f
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" /v "SystemResponsiveness" /t REG_DWORD /d 0 /f
@@ -353,8 +320,7 @@ reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" /
 
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "removetask1" /t REG_SZ /f /d "schtasks.exe /Delete /F /TN \Microsoft\Windows\RetailDemo\CleanupOfflineContent"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "removetask2" /t REG_SZ /f /d "schtasks.exe /Delete /F /TN \Microsoft\Windows\Setup\SetupCleanupTask"
-takeown /R /F C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
-del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*.*
+
 attrib +R C:\Windows\System32\SleepStudy\UserNotPresentSession.etl
 
 schtasks.exe /Create /TR "cmd /c shutdown /r /t 10 /f & schtasks.exe /Delete /F /TN Reboot" /RU Administrator /TN Reboot /SC ONLOGON /IT /V1 /Z
@@ -425,6 +391,7 @@ reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v "EnableActivityFeed" /t REG_DWORD /d 0 /f
 :: Disable Windows Firewall, since Windows Filtering Platform (WFP) is better
 netsh.exe advfirewall set allprofiles state off
+
 reg.exe add "HKCU\SOFTWARE\Policies\Microsoft\Windows\Explorer" /v "DisableSearchBoxSuggestions" /t REG_DWORD /d 1 /f
 
 :: Aero Shake is a bad feature
@@ -505,15 +472,21 @@ if %delete_windows_security%==1 (
 	icacls.exe "%WinDir%\System32\SecurityHealthHost.exe" /grant:r %username%:F
 	taskkill.exe /im SecurityHealthHost.exe /f
 	del "%WinDir%\System32\SecurityHealthHost.exe" /s /f /q
+
 	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender" /R
 	icacls.exe "C:\Program Files\Windows Defender\*" /grant:r %username%:F
 	rmdir /S /Q "C:\Program Files\Windows Defender"
+
+	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender Advanced Threat Protection" /R
+	icacls.exe "C:\Program Files\Windows Defender Advanced Threat Protection" /grant:r %username%:F
+	rmdir /S /Q "C:\Program Files\Windows Defender Advanced Threat Protection"
+
 	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" /v "EnableWebContentEvaluation" /t "REG_DWORD" /d 0 /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v "EnableSmartScreen" /t "REG_DWORD" /d 0 /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControl" /t REG_SZ /d "Anywhere" /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControlEnabled" /t "REG_DWORD" /d 0 /f
 	schtasks.exe /Change /TN "Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh" /Disable
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
+	:: reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WinDefend" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdBoot" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdFilter" /v "Start" /t REG_DWORD /d 4 /f
@@ -522,6 +495,14 @@ if %delete_windows_security%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f
 	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "SecurityHealth" /f
+)
+
+if %disable_geolocation%==1 (
+	sc.exe stop lfsvc
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\lfsvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocation" /t REG_DWORD /d 1 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableWindowsLocationProvider" /t REG_DWORD /d 1 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocationScripting" /t REG_DWORD /d 1 /f
 )
 :: Disable SMBv1 client and server, it's insecure and slow in comparison to SMBv3
 powershell.exe -Command "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"
