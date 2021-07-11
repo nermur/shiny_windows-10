@@ -5,8 +5,9 @@
 :: If Jumbo Packets being disabled concerns you, look into what else is changed before using it.
 set /A network_adapter_tweaks=1
 :: Installs .NET Framework 2 and 3.5 for backwards compatibility
-set /A install_dotnet_2_and_3=1
-set /A gpu_tweaks=1
+set /A install_dotnet_2_and_3=0
+:: Only tested on a nVidia GTX 1080 Ti
+set /A gpu_tweaks=0
 :: Terrible at video recording; other use cases go ignored
 set /A disable_game_bar=1
 :: How to stay secure: Keep the amount of software installed to a minimum (what you need), keep JavaScript disabled on as many websites as possible (using uMatrix or NoScript), and consider which comforts to cut off (such as Spotify) 
@@ -19,6 +20,8 @@ set /A delete_windows_security=1
 set /A ntfs_tweaks=1
 :: Disables GPS services, which always run even if there's no GPS hardware installed
 set /A disable_geolocation=1
+
+set /A break_windows_store=0
 
 reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
@@ -40,9 +43,18 @@ icacls "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inherit
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 3 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 3 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 3 /f
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v "Start" /t REG_DWORD /d 3 /f
+
 sc.exe start AppXSvc
 sc.exe start ClipSVC
 sc.exe start MpsSvc
+
+if %break_windows_store%==1 (
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
+)
 
 cls
 echo ==== Instructions ====
@@ -217,10 +229,8 @@ net accounts /maxpwage:unlimited
 :: Unhide lots of Power Plan options
 powershell.exe -Command ".\enable-all-advanced-power-settings.ps1 | Out-File powercfg.ps1 | .\powercfg.ps1"
 
-:: The "High performance" power plan does not get the most out of your PC, and can cause stuttering/DPC problems "Bitsum Highest performance" wouldn't have
-powercfg.exe /d 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-:: "Ultimate performance" from Microsoft is inferior to Bitsum's offering
-powercfg.exe /d e9a42b02-d5df-448d-aa00-03f14749eb61
+:: Bitsum Highest Performance profile cannot install if any Power Plans were previously removed
+powercfg –restoredefaultschemes
 :: Sleep mode achieves the same goal while not hammering the primary hard drive, but will break in power outages/surges; regardless, leaving a PC unattended is bad
 powercfg.exe /hibernate off
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /V HiberbootEnabled /T REG_DWORD /D 0 /F
@@ -228,7 +238,7 @@ reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /V Hib
 :: Increasing overall system latency/DPC for the sake of minimal power saving is bad
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" /v "PowerThrottlingOff" /t REG_DWORD /d 1 /f
 :: Automated file cleanup (without user interaction) is a bad idea
-Reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense" /v "AllowStorageSenseGlobal" /t REG_DWORD /d 0 /f
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\StorageSense" /v "AllowStorageSenseGlobal" /t REG_DWORD /d 0 /f
 reg.exe delete "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense" /f
 
 schtasks.exe /Change /DISABLE /TN "\Microsoft\Office\OfficeTelemetryAgentFallBack"
@@ -357,7 +367,6 @@ if %disable_game_bar%==1 (
 
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Themes" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppReadiness" /v Start /t REG_DWORD /d 4 /f
-reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\vdrvroot" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\volmgrx" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Wof" /v Start /t REG_DWORD /d 3 /f
