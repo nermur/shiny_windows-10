@@ -4,7 +4,7 @@
 
 :: If Jumbo Packets being disabled concerns you, look into what else is changed before using it.
 set /A network_adapter_tweaks=1
-:: Installs .NET Framework 2 and 3.5 for backwards compatibility
+:: Install .NET Framework 2 and 3.5 for backwards compatibility
 set /A install_dotnet_2_and_3=0
 :: Only tested on a nVidia GTX 1080 Ti
 set /A gpu_tweaks=0
@@ -20,6 +20,9 @@ set /A delete_windows_security=1
 set /A ntfs_tweaks=1
 :: Disables GPS services, which always run even if there's no GPS hardware installed
 set /A disable_geolocation=1
+:: Disables Game DVR/Game Bar and all Xbox functionality, which are intertwined with another
+:: Warning: Not tested!
+set /A disable_xbox=0
 
 set /A break_windows_store=0
 
@@ -61,11 +64,11 @@ echo ==== Instructions ====
 echo.
 echo 1. If using an Intel ethernet adapter, install its drivers now: https://downloadcenter.intel.com/download/25016/
 echo.
-echo 2. Temporarily disable all anti-virus/anti-malware software before proceeding
+echo 2. Install Process Lasso from Bitsum; better thread scheduling and the best power plan ("Bitsum Highest Performance")
 echo.
-echo 3. Install Process Lasso from Bitsum for better thread scheduling and the best power plan ("Bitsum Highest Performance")
+echo 3. Insider builds will be disabled; never enable it back, it will revert your own changes and this script every update
 echo.
-echo 4. Insider builds will be disabled; never enable it back, as it will revert many changes you do, and revert this script
+echo 4. Temporarily disable all anti-virus/anti-malware software before proceeding
 echo.
 Pause
 cd %SystemRoot%\System32
@@ -74,7 +77,7 @@ cd %SystemRoot%\System32
 WMIC.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "Before applying the Shiny Windows script", 100, 7
 
 :: Activation is required for some changes; this requires ClipSVC to correctly activate
-start /HIGH /WAIT %~dp0\KMS38_Activation.cmd
+start /HIGH /B "" %~dp0\KMS38_Activation.cmd
 
 :: ! Auto-run once every boot: START !
 :: Full Screen Optimizations
@@ -354,17 +357,6 @@ reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLog
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger2" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiDriverIHVSessionRepro\" /v Start /t REG_DWORD /d 0 /f"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "AutoLogger3" /t REG_SZ /f /d "reg.exe add \"HKLM\System\CurrentControlSet\Control\WMI\Autologger\WiFiSession\" /v Start /t REG_DWORD /d 0 /f"
 
-:: Disable Game Bar
-if %disable_game_bar%==1 (
-	reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "AudioCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "CursorCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "MicrophoneCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
-)
-
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Themes" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppReadiness" /v Start /t REG_DWORD /d 4 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\vdrvroot" /v Start /t REG_DWORD /d 4 /f
@@ -513,6 +505,33 @@ if %disable_geolocation%==1 (
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocation" /t REG_DWORD /d 1 /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableWindowsLocationProvider" /t REG_DWORD /d 1 /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocationScripting" /t REG_DWORD /d 1 /f
+)
+if %disable_xbox%==1 (
+	reg add "HKLM\System\CurrentControlSet\Services\xbgm" /v "Start" /t REG_DWORD /d "4" /f
+	sc config XblAuthManager start= disabled
+	sc config XblGameSave start= disabled
+	sc config XboxGipSvc start= disabled
+	sc config XboxNetApiSvc start= disabled
+	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
+	takeown /f "%WinDir%\System32\GameBarPresenceWriter.exe" /a
+	icacls "%WinDir%\System32\GameBarPresenceWriter.exe" /grant:r Administrators:F /c
+	taskkill /im GameBarPresenceWriter.exe /f
+	move "C:\Windows\System32\GameBarPresenceWriter.exe" "C:\Windows\System32\GameBarPresenceWriter.exe.disabled"
+	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
+	takeown /f "%WinDir%\System32\bcastdvr.exe" /a
+	icacls "%WinDir%\System32\bcastdvr.exe" /grant:r Administrators:F /c
+	taskkill /im bcastdvr.exe /f
+	move C:\Windows\System32\bcastdvr.exe C:\Windows\System32\bcastdvr.exe.disabled
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg add "HKCU\Software\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AudioCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "CursorCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "MicrophoneCaptureEnabled" /t REG_DWORD /d 0 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
+	reg add "HKCU\Software\Microsoft\GameBar" /v "ShowStartupPanel" /t REG_DWORD /d 0 /f
+	reg add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
+	reg add "HKLM\Software\Policies\Microsoft\Windows\GameDVR" /v "AllowgameDVR" /t REG_DWORD /d 0 /f
+	reg add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 0 /f
 )
 :: Disable SMBv1 client and server, it's insecure and slow in comparison to SMBv3
 powershell.exe -Command "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"
