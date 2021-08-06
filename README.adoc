@@ -2,5 +2,3 @@
 ** link:https://github.com/WereDev/Wu10Man[Wu10Man]
 
 * Configure the options located inside shiny_windows-10.bat before running it.
-
-NOTE: Please use Bitlocker (disk encryption) if not clearing the paging file concerns you.
