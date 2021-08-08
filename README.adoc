@@ -1,4 +1,24 @@
+:experimental:
+:imagesdir: imgs/
+ifdef::env-github[]
+:icons:
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+endif::[]
+
 * This script compliments (and is intended to be used with):
 ** link:https://github.com/WereDev/Wu10Man[Wu10Man]
 
 * Configure the options located inside shiny_windows-10.bat before running it.
+
+== Potential undesirables
+* Wallpaper is changed to a static colour to avoid loading an image/wallpaper into memory, where it'd reside until changed
+* System mitigations are disabled, and so is UAC; inorder to actually secure your system (system mitigations as a whole are irrelevant)
+** Keep amount of software installed to a minimum
+** Make JavaScript disabled by default (using uMatrix), and do not enable Javascript on sites you don't require; it's easier to find good websites worth your time with JavaScript disabled +
+image:mNbQoYvMmk.png[]
+** Updating software can expose direct risks, given its source had been compromised (such as with CCleaner)
+** Not updating software can expose indirect risks, exploits which need to be utilized by someone specifically targetting your machine (no chance for most people)
