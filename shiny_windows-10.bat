@@ -25,10 +25,10 @@ set /A disable_geolocation=1
 set /A disable_xbox=0
 :: Printers are heavily exploitable, avoid using one if possible
 set /A disable_printer_support=1
-:: If Bluetooth is used, but Audio through Bluetooth is not
-set /A disable_bluetooth_audio_support=1
+:: Will break SteamVR Base Station support
+set /A disable_bluetooth_audio_support=0
 :: Disables mouse smoothing across all software & games
-set /A markc_mousefix=1
+set /A run_markc_mousefix=1
 
 set /A break_windows_store=0
 
@@ -571,7 +571,7 @@ if %disable_bluetooth_audio_support%==1 (
 	sc config BthAvctpSvc start= disabled
 	sc config BTAGService start= disabled
 )
-if %markc_mousefix%==1 (
+if %run_markc_mousefix%==1 (
 	start /high "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
 )
 :: Don't log events without warnings or errors
@@ -605,6 +605,22 @@ reg.exe add "HKCU\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotific
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Feeds" /v "ShellFeedsTaskbarViewMode" /t REG_DWORD /d 2 /f
 :: Disable first sign-in animation (initiates on a new user account)
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v "EnableFirstLogonAnimation" /t REG_DWORD /d 0 /f
+
+:: Clean out font cache; incase font cache was corrupted before running this script
+:FontCache
+sc stop "FontCache"
+sc config "FontCache" start=disabled
+sc query FontCache | findstr /I /C:"STOPPED" 
+if not %errorlevel%==0 (goto FontCache)
+
+:: Grant access rights to current user for "%WinDir%\ServiceProfiles\LocalService" folder and contents
+icacls "%WinDir%\ServiceProfiles\LocalService" /grant "%UserName%":F /C /T /Q
+:: Delete font cache
+del /A /F /Q "%WinDir%\ServiceProfiles\LocalService\AppData\Local\FontCache\*FontCache*"
+del /A /F /Q "%WinDir%\System32\FNTCACHE.DAT"
+
+:: Re-enable font caching service
+sc config "FontCache" start=auto
 
 taskkill.exe /IM explorer.exe /F
 start explorer.exe
