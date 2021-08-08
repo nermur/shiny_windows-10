@@ -10,7 +10,7 @@ set /A install_dotnet_2_and_3=0
 set /A gpu_tweaks=0
 :: Terrible at video recording; other use cases go ignored
 set /A disable_game_bar=1
-:: How to stay secure: Keep the amount of software installed to a minimum (what you need), keep JavaScript disabled on as many websites as possible (using uMatrix or NoScript), and consider which comforts to cut off (such as Spotify) 
+:: Instructions on how to stay secure are located @ README.adoc
 set /A disable_mitigations=1
 :: Routing through IPv6 is worse than IPv4 in some areas (higher latency/ping)
 set /A disable_ipv6=0
