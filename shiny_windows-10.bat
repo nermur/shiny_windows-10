@@ -85,6 +85,7 @@ echo 1. Enable the following options in your motherboard's BIOS:
 echo * I/O APIC (IOAPIC 24-119 Entries)
 echo * Above 4G Decoding
 echo * Resizable BAR
+echo.
 Pause
 cd %SystemRoot%\System32
 
@@ -571,7 +572,7 @@ if %disable_bluetooth_audio_support%==1 (
 	sc config BTAGService start= disabled
 )
 if %markc_mousefix%==1 (
-	start /high /b "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
+	start /high "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
 )
 :: Don't log events without warnings or errors
 auditpol.exe /set /category:* /Success:disable
