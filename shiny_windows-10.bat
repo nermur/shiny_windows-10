@@ -564,14 +564,6 @@ if %remove_xbox%==1 (
 	taskkill /im GameBarPresenceWriter.exe /f
 	move "%WinDir%\System32\GameBarPresenceWriter.exe" "%WinDir%\System32\GameBarPresenceWriter.exe.disabled"
 	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
-
-	:: 
-	::takeown /f "%WinDir%\System32\bcastdvruserservice.dll" /a
-	::icacls.exe "%WinDir%\System32\bcastdvruserservice.dll" /grant:r Administrators:F /c
-	::move "%WinDir%\System32\bcastdvruserservice.dll" "%WinDir%\System32\bcastdvruserservice.dll.disabled"
-	::takeown /f "%WinDir%\SysWOW64\bcastdvruserservice.dll" /a
-	::icacls.exe "%WinDir%\SysWOW64\bcastdvruserservice.dll" /grant:r Administrators:F /c
-	::move "%WinDir%\SysWOW64\bcastdvruserservice.dll" "%WinDir%\SysWOW64\bcastdvruserservice.dll.disabled"
 )
 if %disable_printer_support%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Spooler" /v "Start" /t REG_DWORD /d 4 /f
@@ -595,6 +587,14 @@ reg.exe add "HKCU\Software\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t 
 :: TODO: Move this somewhere else
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
 	reg.exe add "HKCU\Software\Microsoft\GameBar" /v "ShowStartupPanel" /t REG_DWORD /d 0 /f
+
+:: Can't test complete Game DVR removal on Windows 10 LTSC 2019 
+	::takeown /f "%WinDir%\System32\bcastdvruserservice.dll" /a
+	::icacls.exe "%WinDir%\System32\bcastdvruserservice.dll" /grant:r Administrators:F /c
+	::move "%WinDir%\System32\bcastdvruserservice.dll" "%WinDir%\System32\bcastdvruserservice.dll.disabled"
+	::takeown /f "%WinDir%\SysWOW64\bcastdvruserservice.dll" /a
+	::icacls.exe "%WinDir%\SysWOW64\bcastdvruserservice.dll" /grant:r Administrators:F /c
+	::move "%WinDir%\SysWOW64\bcastdvruserservice.dll" "%WinDir%\SysWOW64\bcastdvruserservice.dll.disabled"
 
 :: Don't log events without warnings or errors
 auditpol.exe /set /category:* /Success:disable
