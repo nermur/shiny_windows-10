@@ -41,6 +41,11 @@ set /A remove_xbox=0
 :: Disables mouse smoothing across all software & games
 set /A run_markc_mousefix=1
 
+:: TODO DESCRIPTION
+set /A disable_netbios=1
+
+:: Disable Windows Script Host (.vbs/.vbe/.ws/.wsh/.js/.jse); decreases attack surface, and without downsides (for some)
+set /A z-disable_script_host=0
 
 reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
@@ -98,8 +103,8 @@ cd %SystemRoot%\System32
 :: Won't make a restore point if there's already one within the past 24 hours
 WMIC.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "Before applying the Shiny Windows script", 100, 7
 
-:: Malware get around this restriction no problem!
-powershell.exe -Command "Set-ExecutionPolicy RemoteSigned -scope CurrentUser -force"
+:: Allow PowerShell scripts in current directory
+powershell.exe -Command "Get-ChildItem *.ps*1 -recurse | Unblock-File"
 
 :: Activation is required for some changes; requires ClipSVC to fully work
 start /high /b "" "%~dp0\MAS_1.4\KMS38_Activation.cmd"
@@ -234,6 +239,30 @@ reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" /v "BingSear
 :: >> [GROUP 2 END] <<
 
 
+:: >> [GROUP 3] Disable legacy features to increase security <<
+
+:: Disable SMBv1, it's insecure and slow compared to SMBv3
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "SMB1Protocol""
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "SMB1Protocol-Client""
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "SMB1Protocol-Server""
+powershell.exe -Command "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"
+sc.exe config lanmanworkstation depend= bowser/mrxsmb20/nsi
+sc.exe config mrxsmb10 start= disabled
+
+:: Disable legacy PowerShell
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "MicrosoftWindowsPowerShellV2Root""
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "MicrosoftWindowsPowerShellV2""
+
+if %disable_netbios%==0 (
+	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces\Tcpip*' -Name NetbiosOptions -Value 0"
+)
+if %disable_netbios%==1 (
+	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces\Tcpip*' -Name NetbiosOptions -Value 2"
+)
+
+:: >> [GROUP 3 END] <<
+
+
 :: Disable updates for Speech Recognition and Speech Synthesis
 reg.exe add "HKLM\SOFTWARE\Microsoft\Speech_OneCore\Preferences" /v "ModelDownloadAllowed" /t REG_DWORD /d 0 /f
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Speech" /v "AllowSpeechModelUpdate" /t REG_DWORD /d 0 /f
@@ -267,6 +296,45 @@ if %break_windows_store%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
 )
+if %delete_windows_security%==1 (
+	bcdedit.exe /set tpmbootentropy ForceDisable
+	bcdedit.exe /set hypervisorlaunchtype off
+	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\smartscreen.exe"
+	icacls.exe "%WinDir%\System32\smartscreen.exe" /grant:r %username%:F
+	taskkill.exe /im smartscreen.exe /f
+	del "%WinDir%\System32\smartscreen.exe" /s /f /q
+	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\SecurityHealthSystray.exe"
+	icacls.exe "%WinDir%\System32\SecurityHealthSystray.exe" /grant:r %username%:F
+	taskkill.exe /im SecurityHealthSystray.exe /f
+	del "%WinDir%\System32\SecurityHealthSystray.exe" /s /f /q
+	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\SecurityHealthHost.exe"
+	icacls.exe "%WinDir%\System32\SecurityHealthHost.exe" /grant:r %username%:F
+	taskkill.exe /im SecurityHealthHost.exe /f
+	del "%WinDir%\System32\SecurityHealthHost.exe" /s /f /q
+
+	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender" /R
+	icacls.exe "C:\Program Files\Windows Defender\*" /grant:r %username%:F
+	rmdir /S /Q "C:\Program Files\Windows Defender"
+
+	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender Advanced Threat Protection" /R
+	icacls.exe "C:\Program Files\Windows Defender Advanced Threat Protection" /grant:r %username%:F
+	rmdir /S /Q "C:\Program Files\Windows Defender Advanced Threat Protection"
+
+	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" /v "EnableWebContentEvaluation" /t "REG_DWORD" /d 0 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v "EnableSmartScreen" /t "REG_DWORD" /d 0 /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControl" /t REG_SZ /d "Anywhere" /f
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControlEnabled" /t "REG_DWORD" /d 0 /f
+	schtasks.exe /Change /TN "Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh" /Disable
+	:: reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WinDefend" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdBoot" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdFilter" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdNisDrv" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdNisSvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f
+	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "SecurityHealth" /f
+)
 :: Tuned specifically for lowest latency variance (gaming)
 if %network_adapter_tweaks%==1 (
 	powershell.exe -Command ".\network_adapter_tweaks.ps1"
@@ -279,6 +347,7 @@ if %network_adapter_tweaks%==1 (
 	netsh.exe int tcp set global netdma=enabled
 	netsh.exe int tcp set global rss=disabled
 	netsh.exe int tcp set global rsc=disabled
+	netsh.exe int tcp set global timestamps=disabled
 )
 if %install_dotnet_2_and_3%==1 (
 	dism.exe /Online /Enable-Feature /NoRestart /featurename:NetFX3
@@ -300,10 +369,13 @@ if %disable_mitigations%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" /v "Enabled" /t REG_DWORD /d 0 /f
 )
 if %disable_ipv6%==1 (
+	sc.exe stop iphlpsvc
+	sc.exe stop IpxlatCfgSvc
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\iphlpsvc" /v Start /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\IpxlatCfgSvc" /v Start /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "disable_ipv6" /t REG_SZ /f /d "powershell -Command Set-NetAdapterBinding -Name '*' -DisplayName 'Internet Protocol Version 6 (TCP/IPv6)' -Enabled 0"
 )
+
 :: Disable UAC: EnableLUA at 0 will break startup of some software, such as https://eddie.website/
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v "EnableLUA" /t REG_DWORD /d 1 /f
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v "ConsentPromptBehaviorAdmin" /t REG_DWORD /d 0 /f
@@ -491,7 +563,7 @@ reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManag
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v "DisableWindowsConsumerFeatures" /t REG_DWORD /d 1 /f
 
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v "AllowOnlineTips" /t REG_DWORD /d 0 /f
-:: For a mouse, that extra border width is counter intuitive
+:: For a mouse, extra window top-bar border width is counter intuitive
 reg.exe add "HKCU\Control Panel\Desktop\WindowMetrics" /v "PaddedBorderWidth" /t REG_SZ /d 0 /f
 :: Ensure audio ducking/audio attenuation is disabled
 reg.exe add "HKCU\SOFTWARE\Microsoft\Multimedia\Audio" /v "UserDuckingPreference" /t REG_DWORD /d "3" /f
@@ -500,45 +572,6 @@ reg.exe delete "HKCU\SOFTWARE\Microsoft\Internet Explorer\LowRegistry\Audio\Poli
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /v "SmartScreenEnabled" /t REG_SZ /d "Off" /f
 reg.exe add "HKCU\SOFTWARE\Classes\Local Settings\SOFTWARE\Microsoft\Windows\CurrentVersion\AppContainer\Storage\microsoft.microsoftedge_8wekyb3d8bbwe\MicrosoftEdge\PhishingFilter" /v "EnabledV9" /t REG_DWORD /d 0 /f
 
-if %delete_windows_security%==1 (
-	bcdedit.exe /set tpmbootentropy ForceDisable
-	bcdedit.exe /set hypervisorlaunchtype off
-	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\smartscreen.exe"
-	icacls.exe "%WinDir%\System32\smartscreen.exe" /grant:r %username%:F
-	taskkill.exe /im smartscreen.exe /f
-	del "%WinDir%\System32\smartscreen.exe" /s /f /q
-	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\SecurityHealthSystray.exe"
-	icacls.exe "%WinDir%\System32\SecurityHealthSystray.exe" /grant:r %username%:F
-	taskkill.exe /im SecurityHealthSystray.exe /f
-	del "%WinDir%\System32\SecurityHealthSystray.exe" /s /f /q
-	takeown.exe /s %computername% /u %username% /f "%WinDir%\System32\SecurityHealthHost.exe"
-	icacls.exe "%WinDir%\System32\SecurityHealthHost.exe" /grant:r %username%:F
-	taskkill.exe /im SecurityHealthHost.exe /f
-	del "%WinDir%\System32\SecurityHealthHost.exe" /s /f /q
-
-	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender" /R
-	icacls.exe "C:\Program Files\Windows Defender\*" /grant:r %username%:F
-	rmdir /S /Q "C:\Program Files\Windows Defender"
-
-	takeown /s %computername% /u %username% /f "C:\Program Files\Windows Defender Advanced Threat Protection" /R
-	icacls.exe "C:\Program Files\Windows Defender Advanced Threat Protection" /grant:r %username%:F
-	rmdir /S /Q "C:\Program Files\Windows Defender Advanced Threat Protection"
-
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" /v "EnableWebContentEvaluation" /t "REG_DWORD" /d 0 /f
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v "EnableSmartScreen" /t "REG_DWORD" /d 0 /f
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControl" /t REG_SZ /d "Anywhere" /f
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\SmartScreen" /v "ConfigureAppInstallControlEnabled" /t "REG_DWORD" /d 0 /f
-	schtasks.exe /Change /TN "Microsoft\Windows\ExploitGuard\ExploitGuard MDM policy Refresh" /Disable
-	:: reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WinDefend" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdBoot" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdFilter" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdNisDrv" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\WdNisSvc" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f
-	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "SecurityHealth" /f
-)
 
 if %disable_geolocation%==1 (
 	sc.exe stop lfsvc
@@ -559,11 +592,11 @@ if %remove_xbox%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XboxGipSvc" /v "Start" /t REG_DWORD /d 4 /f
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XboxNetApiSvc" /v "Start" /t REG_DWORD /d 4 /f
 	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
+
+	taskkill /im GameBarPresenceWriter.exe /f
 	takeown /f "%WinDir%\System32\GameBarPresenceWriter.exe" /a
 	icacls.exe "%WinDir%\System32\GameBarPresenceWriter.exe" /grant:r Administrators:F /c
-	taskkill /im GameBarPresenceWriter.exe /f
 	move "%WinDir%\System32\GameBarPresenceWriter.exe" "%WinDir%\System32\GameBarPresenceWriter.exe.disabled"
-	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
 )
 if %disable_printer_support%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Spooler" /v "Start" /t REG_DWORD /d 4 /f
@@ -574,7 +607,11 @@ if %disable_bluetooth_audio_support%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\BthAvctpSvc" /v "Start" /t REG_DWORD /d 4 /f
 )
 if %run_markc_mousefix%==1 (
-	start /high "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
+	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /off
+	start "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
+)
+if %z-disable_script_host%==1 (
+	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /on
 )
 
 :: Turn off Game DVR; gets rid of "You'll need a new app to open this ms-gamingoverlay" on LTSC 2019
@@ -606,12 +643,6 @@ reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\System
 
 :: Works without issue these days on 1809 (LTSC 2019) or newer
 reg.exe add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 1 /f
-
-:: Disable SMBv1 client and server, it's insecure and slow in comparison to SMBv3
-powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName SMB1Protocol"
-powershell.exe -Command "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"
-sc.exe config lanmanworkstation depend= bowser/mrxsmb20/nsi
-sc.exe config mrxsmb10 start= disabled
 
 :: Don't delay startup of programs
 reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" /v "Startupdelayinmsec" /t REG_DWORD /d 0 /f
