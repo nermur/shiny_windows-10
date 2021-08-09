@@ -1,36 +1,46 @@
 @echo off
-:: TODO list:
-:: * Disable initial lock screen (go straight to login)
+title Shiny Windows 10
+
+:: Also means 'winget' and other .appx reliant software break
+set /A break_windows_store=0
+
+:: Can be reverted with 'sfc /scannow'; used to entirely disable Windows Defender
+set /A delete_windows_security=1
+
+:: Will break SteamVR Base Station support
+set /A disable_bluetooth_audio_support=0
+
+:: Disables GPS services, which always run even if there's no GPS hardware installed
+set /A disable_geolocation=1
+
+:: Routing through IPv6 is worse than IPv4 in some areas (higher latency/ping)
+set /A disable_ipv6=0
+
+:: Instructions on how to stay secure are located @ README.adoc
+set /A disable_mitigations=1
+
+:: Printers are heavily exploitable, avoid using one if possible
+set /A disable_printer_support=1
+
+:: https://nvidia.custhelp.com/app/answers/detail/a_id/5157
+:: https://nvidia.custhelp.com/app/answers/detail/a_id/5159/~/v-sync-off-not-recommended-as-a-global-setting-starting-with-driver-version
+set /A enable_mpo=1
+
+:: Install .NET Framework 2 and 3.5 for backwards compatibility
+set /A install_dotnet_2_and_3=0
 
 :: If Jumbo Packets being disabled concerns you, look into what else is changed before using it.
 set /A network_adapter_tweaks=1
-:: Install .NET Framework 2 and 3.5 for backwards compatibility
-set /A install_dotnet_2_and_3=0
-:: Only tested on a nVidia GTX 1080 Ti
-set /A gpu_tweaks=0
-:: Terrible at video recording; other use cases go ignored
-set /A disable_game_bar=1
-:: Instructions on how to stay secure are located @ README.adoc
-set /A disable_mitigations=1
-:: Routing through IPv6 is worse than IPv4 in some areas (higher latency/ping)
-set /A disable_ipv6=0
-:: Can be reverted with 'sfc /scannow'; used to entirely disable Windows Defender
-set /A delete_windows_security=1
+
 :: Makes disks using the default file system (NTFS) faster, but disables File History and File Access Dates
 set /A ntfs_tweaks=1
-:: Disables GPS services, which always run even if there's no GPS hardware installed
-set /A disable_geolocation=1
-:: Disables Game DVR/Game Bar and all Xbox functionality, which are intertwined with another
-:: Warning: Not tested!
-set /A disable_xbox=0
-:: Printers are heavily exploitable, avoid using one if possible
-set /A disable_printer_support=1
-:: Will break SteamVR Base Station support
-set /A disable_bluetooth_audio_support=0
+
+:: Disables Game DVR, Game Bar, and all Xbox functionality; heavily reliant on each other
+set /A remove_xbox=0
+
 :: Disables mouse smoothing across all software & games
 set /A run_markc_mousefix=1
 
-set /A break_windows_store=0
 
 reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
@@ -41,12 +51,12 @@ reg.exe query HKU\S-1-5-19 || (
 )
 
 :: If there was a scheduled reboot, deny it from now and in the future.
-takeown /R /F C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
+takeown /R /F /D y C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
 del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*
 copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot
 copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_AC
 copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_Battery
-icacls "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
+icacls.exe "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
 
 :: If these are disabled, Windows Update will break and so will this script
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 3 /f
@@ -61,30 +71,26 @@ sc.exe start ClipSVC
 sc.exe start MpsSvc
 sc.exe start StorSvc
 
-if %break_windows_store%==1 (
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 4 /f
-	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
-)
-
 cls
 echo ==== Instructions ====
 echo.
-echo 1. If using an Intel ethernet adapter, install its drivers now: https://downloadcenter.intel.com/download/25016/
+echo Temporarily disable all anti-virus/anti-malware software before proceeding
 echo.
-echo 2. Install Process Lasso from Bitsum; better thread scheduling and the best power plan ("Bitsum Highest Performance")
+echo ==== Current settings ====
 echo.
-echo 3. Insider builds will be disabled; never enable it back, it will revert your own changes and this script every update
-echo.
-echo 4. Temporarily disable all anti-virus/anti-malware software before proceeding
-echo.
-echo ==== Optional =====
-echo.
-echo 1. Enable the following options in your motherboard's BIOS:
-echo * I/O APIC (IOAPIC 24-119 Entries)
-echo * Above 4G Decoding
-echo * Resizable BAR
+echo break_windows_store = %break_windows_store%
+echo delete_windows_security = %delete_windows_security%
+echo disable_bluetooth_audio_support = %disable_bluetooth_audio_support%
+echo disable_geolocation = %disable_geolocation%
+echo disable_ipv6 = %disable_ipv6%
+echo disable_mitigations = %disable_mitigations%
+echo disable_printer_support = %disable_printer_support%
+echo enable_mpo = %enable_mpo%
+echo install_dotnet_2_and_3 = %install_dotnet_2_and_3%
+echo network_adapter_tweaks = %network_adapter_tweaks%
+echo ntfs_tweaks = %ntfs_tweaks%
+echo remove_xbox = %remove_xbox%
+echo run_markc_mousefix = %run_markc_mousefix%
 echo.
 Pause
 cd %SystemRoot%\System32
@@ -92,7 +98,10 @@ cd %SystemRoot%\System32
 :: Won't make a restore point if there's already one within the past 24 hours
 WMIC.exe /Namespace:\\root\default Path SystemRestore Call CreateRestorePoint "Before applying the Shiny Windows script", 100, 7
 
-:: Activation is required for some changes; this requires ClipSVC to correctly activate
+:: Malware get around this restriction no problem!
+powershell.exe -Command "Set-ExecutionPolicy RemoteSigned -scope CurrentUser -force"
+
+:: Activation is required for some changes; requires ClipSVC to fully work
 start /high /b "" "%~dp0\MAS_1.4\KMS38_Activation.cmd"
 
 :: Prefer to disable "Full Screen Optimizations"; FSO uses more GPU, lowering FPS in GPU-intensive games
@@ -102,7 +111,7 @@ reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_FSEBehavior" /t REG_DWORD 
 reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_FSEBehaviorMode" /t REG_DWORD /d "2" /f
 reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_HonorUserFSEBehaviorMode" /t REG_DWORD /d "1" /f
 
-:: >> [GROUP 1] Windows Explorer (file manager) tweaks <<
+:: >> [GROUP 1] File Manager & Windows Shell tweaks <<
 
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "LaunchTo" /t REG_DWORD /d 1 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v "Start_TrackDocs" /t REG_DWORD /d 0 /f
@@ -156,6 +165,7 @@ reg.exe add "HKEY_CURRENT_USER\Control Panel\Colors" /v "Background" /t REG_SZ /
 reg.exe add "HKCU\Control Panel\Desktop" /v "JPEGImportQuality" /t REG_DWORD /d "100" /f
 
 :: >> [GROUP 1 END] <<
+
 
 :: >> [GROUP 2] Privacy enhancers (ask Microsoft nicely to turn off data collectors, which waste system resources) <<
 
@@ -238,11 +248,8 @@ reg.exe add "HKCU\SOFTWARE\Microsoft\Siuf\Rules" /v "NumberOfSIUFInPeriod" /t RE
 reg.exe add "HKCU\SOFTWARE\Policies\Microsoft\Assistance\Client\1.0" /v "NoExplicitFeedback" /t REG_DWORD /d 1 /f
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v "DoNotShowFeedbackNotifications" /t REG_DWORD /d 1 /f
 reg.exe add "HKEY_CURRENT_USER\Software\Policies\Microsoft\Assistance\Client\1.0" /v "NoOnlineAssist" /t REG_DWORD /d 1 /f
-reg.exe add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Assistance\Client\1.0" /v "NoActiveHelp" /t REG_DWORD /d 1 /f
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Assistance\Client\1.0" /v "NoActiveHelp" /t REG_DWORD /d 1 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\Siuf\Rules" /v "PeriodInNanoSeconds" /t REG_DWORD /d 0 /f
-
-:: Malware get around this restriction no problem!
-powershell.exe -Command "Set-ExecutionPolicy RemoteSigned -scope CurrentUser -force"
 
 :: Disable Sticky Keys, Toggle Keys, and Filter Keys
 reg.exe add "HKCU\Control Panel\Accessibility\StickyKeys" /v "Flags" /t REG_SZ /d 50 /f
@@ -254,6 +261,12 @@ reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" /v "AllowBu
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" /v "EnableConfigFlighting" /t REG_DWORD /d 0 /f
 reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" /v "EnableExperimentation" /t REG_DWORD /d 0 /f
 
+if %break_windows_store%==1 (
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\TokenBroker" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\ClipSVC" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\MpsSvc" /v "Start" /t REG_DWORD /d 4 /f
+)
 :: Tuned specifically for lowest latency variance (gaming)
 if %network_adapter_tweaks%==1 (
 	powershell.exe -Command ".\network_adapter_tweaks.ps1"
@@ -268,13 +281,11 @@ if %network_adapter_tweaks%==1 (
 	netsh.exe int tcp set global rsc=disabled
 )
 if %install_dotnet_2_and_3%==1 (
-	dism.exe /online /enable-feature /featurename:NetFX3
+	dism.exe /Online /Enable-Feature /NoRestart /featurename:NetFX3
 )
 
-if %gpu_tweaks%==1 (
+if %enable_mpo%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" /v "HwSchMode" /t REG_DWORD /d 2 /f
-	:: https://nvidia.custhelp.com/app/answers/detail/a_id/5157
-	:: https://nvidia.custhelp.com/app/answers/detail/a_id/5159/~/v-sync-off-not-recommended-as-a-global-setting-starting-with-driver-version
 	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\Dwm" /v "OverlayTestMode" /f
 )
 if %disable_mitigations%==1 (
@@ -477,7 +488,7 @@ reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManag
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v "SilentInstalledAppsEnabled" /t REG_DWORD /d 0 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v "SoftLandingEnabled" /t REG_DWORD /d 0 /f
 reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v "SystemPaneSuggestionsEnabled" /t REG_DWORD /d 0 /f
-reg.exe add "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v "DisableWindowsConsumerFeatures" /t REG_DWORD /d 1 /f
+reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v "DisableWindowsConsumerFeatures" /t REG_DWORD /d 1 /f
 
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v "AllowOnlineTips" /t REG_DWORD /d 0 /f
 :: For a mouse, that extra border width is counter intuitive
@@ -536,61 +547,74 @@ if %disable_geolocation%==1 (
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableWindowsLocationProvider" /t REG_DWORD /d 1 /f
 	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors" /v "DisableLocationScripting" /t REG_DWORD /d 1 /f
 )
-if %disable_xbox%==1 (
-	reg add "HKLM\System\CurrentControlSet\Services\xbgm" /v "Start" /t REG_DWORD /d "4" /f
-	sc config XblAuthManager start= disabled
-	sc config XblGameSave start= disabled
-	sc config XboxGipSvc start= disabled
-	sc config XboxNetApiSvc start= disabled
+if %remove_xbox%==1 (
+	sc.exe stop xbgm
+	sc.exe stop XblAuthManager
+	sc.exe stop XblGameSave
+	sc.exe stop XboxGipSvc
+	sc.exe stop XboxNetApiSvc
+	reg.exe add "HKLM\System\CurrentControlSet\Services\xbgm" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XblAuthManager" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XblGameSave" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XboxGipSvc" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\XboxNetApiSvc" /v "Start" /t REG_DWORD /d 4 /f
 	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
 	takeown /f "%WinDir%\System32\GameBarPresenceWriter.exe" /a
-	icacls "%WinDir%\System32\GameBarPresenceWriter.exe" /grant:r Administrators:F /c
+	icacls.exe "%WinDir%\System32\GameBarPresenceWriter.exe" /grant:r Administrators:F /c
 	taskkill /im GameBarPresenceWriter.exe /f
-	move "C:\Windows\System32\GameBarPresenceWriter.exe" "C:\Windows\System32\GameBarPresenceWriter.exe.disabled"
+	move "%WinDir%\System32\GameBarPresenceWriter.exe" "%WinDir%\System32\GameBarPresenceWriter.exe.disabled"
 	schtasks /Change /TN "Microsoft\XblGameSave\XblGameSaveTask" /Disable
-	takeown /f "%WinDir%\System32\bcastdvr.exe" /a
-	icacls "%WinDir%\System32\bcastdvr.exe" /grant:r Administrators:F /c
-	taskkill /im bcastdvr.exe /f
-	move C:\Windows\System32\bcastdvr.exe C:\Windows\System32\bcastdvr.exe.disabled
-	reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\Software\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AudioCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "CursorCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" /v "MicrophoneCaptureEnabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\Software\Microsoft\GameBar" /v "ShowStartupPanel" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
-	reg.exe add "HKLM\Software\Policies\Microsoft\Windows\GameDVR" /v "AllowgameDVR" /t REG_DWORD /d 0 /f
-	reg.exe add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 0 /f
+
+	:: 
+	::takeown /f "%WinDir%\System32\bcastdvruserservice.dll" /a
+	::icacls.exe "%WinDir%\System32\bcastdvruserservice.dll" /grant:r Administrators:F /c
+	::move "%WinDir%\System32\bcastdvruserservice.dll" "%WinDir%\System32\bcastdvruserservice.dll.disabled"
+	::takeown /f "%WinDir%\SysWOW64\bcastdvruserservice.dll" /a
+	::icacls.exe "%WinDir%\SysWOW64\bcastdvruserservice.dll" /grant:r Administrators:F /c
+	::move "%WinDir%\SysWOW64\bcastdvruserservice.dll" "%WinDir%\SysWOW64\bcastdvruserservice.dll.disabled"
 )
 if %disable_printer_support%==1 (
-	sc config Spooler start= disabled
-	sc config PrintNotify start= disabled
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Spooler" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\PrintNotify" /v "Start" /t REG_DWORD /d 4 /f
 )
 if %disable_bluetooth_audio_support%==1 (
-	sc config BthAvctpSvc start= disabled
-	sc config BTAGService start= disabled
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\BTAGService" /v "Start" /t REG_DWORD /d 4 /f
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\BthAvctpSvc" /v "Start" /t REG_DWORD /d 4 /f
 )
 if %run_markc_mousefix%==1 (
 	start /high "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
 )
+
+:: Turn off Game DVR; gets rid of "You'll need a new app to open this ms-gamingoverlay" on LTSC 2019
+reg.exe add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d 0 /f
+reg.exe add "HKLM\Software\Policies\Microsoft\Windows\GameDVR" /v "AllowGameDVR" /t REG_DWORD /d 0 /f
+reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d 0 /f
+reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "HistoricalCaptureEnabled" /t REG_DWORD /d 0 /f
+reg.exe add "HKCU\Software\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d 0 /f
+
+:: TODO: Move this somewhere else
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\GameUX" /v "DownloadGameInfo" /t REG_DWORD /d 0 /f
+	reg.exe add "HKCU\Software\Microsoft\GameBar" /v "ShowStartupPanel" /t REG_DWORD /d 0 /f
+
 :: Don't log events without warnings or errors
 auditpol.exe /set /category:* /Success:disable
 
 :: Game scheduler tweaks; doubles GPU priority, then sets I/O and CPU priority to High
-reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "GPU Priority" /t REG_DWORD /d "16" /f
+reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "GPU Priority" /t REG_DWORD /d 16 /f
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "SFIO Priority" /t REG_SZ /d "High" /f
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games" /v "Scheduling Category" /t REG_SZ /d "High" /f
 
+:: Works without issue these days on 1809 (LTSC 2019) or newer
+reg.exe add "HKCU\Software\Microsoft\GameBar" /v "AllowAutoGameMode" /t REG_DWORD /d 1 /f
+
 :: Disable SMBv1 client and server, it's insecure and slow in comparison to SMBv3
-powershell.exe -Command "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol"
+powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName SMB1Protocol"
 powershell.exe -Command "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"
 sc.exe config lanmanworkstation depend= bowser/mrxsmb20/nsi
 sc.exe config mrxsmb10 start= disabled
 
 :: Don't delay startup of programs
 reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" /v "Startupdelayinmsec" /t REG_DWORD /d 0 /f
-
 :: Decrease shutdown time
 reg.exe add "HKCU\Control Panel\Desktop" /v WaitToKillAppTimeOut /t REG_SZ /d 2000 /f
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control" /v WaitToKillServiceTimeout /t REG_SZ /d 2000 /f
@@ -609,18 +633,19 @@ reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v 
 :: Clean out font cache; incase font cache was corrupted before running this script
 :FontCache
 sc stop "FontCache"
-sc config "FontCache" start=disabled
+:: sc config "FontCache" start=disabled
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\FontCache" /v "Start" /t REG_DWORD /d 4 /f
 sc query FontCache | findstr /I /C:"STOPPED" 
 if not %errorlevel%==0 (goto FontCache)
 
 :: Grant access rights to current user for "%WinDir%\ServiceProfiles\LocalService" folder and contents
-icacls "%WinDir%\ServiceProfiles\LocalService" /grant "%UserName%":F /C /T /Q
+icacls.exe "%WinDir%\ServiceProfiles\LocalService" /grant "%UserName%":F /C /T /Q
 :: Delete font cache
 del /A /F /Q "%WinDir%\ServiceProfiles\LocalService\AppData\Local\FontCache\*FontCache*"
 del /A /F /Q "%WinDir%\System32\FNTCACHE.DAT"
 
-:: Re-enable font caching service
-sc config "FontCache" start=auto
+:: sc config "FontCache" start=auto
+reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\FontCache" /v "Start" /t REG_DWORD /d 2 /f
 
 taskkill.exe /IM explorer.exe /F
 start explorer.exe

@@ -9,12 +9,18 @@ ifdef::env-github[]
 :warning-caption: :warning:
 endif::[]
 
-* This script compliments (and is intended to be used with):
-** link:https://github.com/WereDev/Wu10Man[Wu10Man]
+== Instructions
 
-* Configure the options located inside shiny_windows-10.bat before running it.
+* Install link:https://downloadcenter.intel.com/download/25016/[Intel ethernet driver] (if using one)
+. Install link:https://dl.bitsum.com/files/processlassosetup64.exe[Process Lasso] from Bitsum; better thread scheduling and the best power plan ("Bitsum Highest Performance")
+. Enable the following options in your motherboard's BIOS:
+** I/O APIC (IOAPIC 24-119 Entries)
+** Above 4G Decoding
+** Resizable BAR [NOTE: If Windows cannot boot (due to using MBR instead of GPT), disable this]
+. Configure the options located inside `shiny_windows-10.bat` before running it.
 
 == Potential undesirables
+* Insider builds will be disabled; **never re-enable it**, it will revert your own changes and this script on every update
 * Wallpaper is changed to a static colour to avoid loading an image/wallpaper into memory, where it'd reside until changed
 * System mitigations are disabled, and so is UAC; inorder to actually secure your system (system mitigations as a whole are irrelevant)
 ** Keep amount of software installed to a minimum
@@ -22,3 +28,7 @@ endif::[]
 image:mNbQoYvMmk.png[]
 ** Updating software can expose direct risks, given its source had been compromised (such as with CCleaner)
 ** Not updating software can expose indirect risks, exploits which need to be utilized by someone specifically targetting your machine (no chance for most people)
+
+== Extras
+* link:https://github.com/WereDev/Wu10Man[Wu10Man] - Disable/Enable Windows Update
+* link:https://winaerotweaker.com/[Winaero Tweaker] - Extensive number of (mostly high-quality) usability tweaks
