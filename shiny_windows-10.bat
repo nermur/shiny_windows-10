@@ -29,13 +29,13 @@ set /A enable_mpo=1
 :: Install .NET Framework 2 and 3.5 for backwards compatibility
 set /A install_dotnet_2_and_3=0
 
-:: If Jumbo Packets being disabled concerns you, look into what else is changed before using it.
+:: Ensure reliability no matter the (DOCSIS 3.1/ADSL/Fiber) networking conditions; great for both games and torrents
 set /A network_adapter_tweaks=1
 
 :: Makes disks using the default file system (NTFS) faster, but disables File History and File Access Dates
 set /A ntfs_tweaks=1
 
-:: Disables Game DVR, Game Bar, and all Xbox functionality; heavily reliant on each other
+:: Disables Game Bar and all Xbox functionality; heavily reliant on each other
 set /A remove_xbox=0
 
 :: Disables mouse smoothing across all software & games
@@ -47,6 +47,9 @@ set /A disable_netbios=1
 :: Disable Windows Script Host (.vbs/.vbe/.ws/.wsh/.js/.jse); decreases attack surface, and without downsides (for some)
 set /A z-disable_script_host=0
 
+:: 1 if you are absolutely sure this PC is used solely for games
+set /A z-disable_tcp_nagle=0
+
 reg.exe query HKU\S-1-5-19 || (
 	echo ==== Error ====
 	echo Right click on this file and select 'Run as administrator'
@@ -56,12 +59,12 @@ reg.exe query HKU\S-1-5-19 || (
 )
 
 :: If there was a scheduled reboot, deny it from now and in the future.
-takeown /R /F /D y C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
-del /F /S /Q C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*
-copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot
-copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_AC
-copy /y NUL %windir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_Battery
-icacls.exe "C:\Windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
+takeown /R /F /D y %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
+del /F /S /Q %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*
+copy /y NUL %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot
+copy /y NUL %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_AC
+copy /y NUL %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\Reboot_Battery
+icacls.exe "%WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator" /inheritance:r /deny "Everyone:(OI)(CI)(F)" "ANONYMOUS LOGON:(OI)(CI)(F)"
 
 :: If these are disabled, Windows Update will break and so will this script
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\AppXSvc" /v "Start" /t REG_DWORD /d 3 /f
@@ -246,6 +249,8 @@ powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -Feat
 powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "SMB1Protocol-Client""
 powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "SMB1Protocol-Server""
 powershell.exe -Command "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"
+:: SMB v2/v3 on SMB Server
+powershell.exe -Command "Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force"
 sc.exe config lanmanworkstation depend= bowser/mrxsmb20/nsi
 sc.exe config mrxsmb10 start= disabled
 
@@ -254,6 +259,7 @@ powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -Feat
 powershell.exe -Command "Disable-WindowsOptionalFeature -NoRestart -Online -FeatureName "MicrosoftWindowsPowerShellV2""
 
 if %disable_netbios%==0 (
+	:: Must be HKLM:\ (not HKLM)
 	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters\Interfaces\Tcpip*' -Name NetbiosOptions -Value 0"
 )
 if %disable_netbios%==1 (
@@ -335,19 +341,27 @@ if %delete_windows_security%==1 (
 	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /f
 	reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "SecurityHealth" /f
 )
-:: Tuned specifically for lowest latency variance (gaming)
 if %network_adapter_tweaks%==1 (
 	powershell.exe -Command ".\network_adapter_tweaks.ps1"
+	netsh.exe int tcp set global dca=enabled
+	netsh.exe int tcp set global netdma=disabled
+	:: PowerShell's "Set-NetTCPSetting" doesn't allow changing property "CongestionProvider"
+	netsh.exe int tcp set supplemental Internet congestionprovider=ctcp
 	:: Don't allow the Multimedia Class Scheduler Service to throttle
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" /v "NetworkThrottlingIndex" /t REG_DWORD /d 4294967295 /f
 	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" /v "SystemResponsiveness" /t REG_DWORD /d 0 /f
 
-	reg.exe add "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" /v "IRPStackSize" /t REG_DWORD /d 20 /f
-	netsh.exe int tcp set global dca=enabled
-	netsh.exe int tcp set global netdma=enabled
-	netsh.exe int tcp set global rss=disabled
-	netsh.exe int tcp set global rsc=disabled
-	netsh.exe int tcp set global timestamps=disabled
+	:: Android & Linux's default TTL; disregard packets quicker if they haven't reached their target destination
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "DefaultTTL" /t REG_DWORD /d 64 /f
+	:: Half port re-use time since TTL is halved from its default value
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" /v "TcpTimedWaitDelay" /t REG_DWORD /d 60 /f
+
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" /v "Size" /t REG_DWORD /d 3 /f
+	:: Never apply QoS/throttle on this PC, only allow the router and/or modem to do so
+	reg.exe add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Psched" /v "NonBestEffortLimit" /t REG_DWORD /d 0 /f
+	
+	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" /v "IRPStackSize" /t REG_DWORD /d 20 /f
+
 )
 if %install_dotnet_2_and_3%==1 (
 	dism.exe /Online /Enable-Feature /NoRestart /featurename:NetFX3
@@ -482,18 +496,16 @@ schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\WS\WSTask"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "removetask1" /t REG_SZ /f /d "schtasks.exe /Delete /F /TN \Microsoft\Windows\RetailDemo\CleanupOfflineContent"
 reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce" /v "removetask2" /t REG_SZ /f /d "schtasks.exe /Delete /F /TN \Microsoft\Windows\Setup\SetupCleanupTask"
 
-attrib +R C:\Windows\System32\SleepStudy\UserNotPresentSession.etl
+attrib +R %WinDir%\System32\SleepStudy\UserNotPresentSession.etl
 
-schtasks.exe /Create /TR "cmd /c shutdown /r /t 10 /f & schtasks.exe /Delete /F /TN Reboot" /RU Administrator /TN Reboot /SC ONLOGON /IT /V1 /Z
-
-if exist "C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe" (
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET20_Optimize3 /SC ONLOGON /IT"
+if exist "%WinDir%\Microsoft.NET\Framework\v2.0.50727\ngen.exe" (
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min %WinDir%\Microsoft.NET\Framework\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize1 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET20_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min %WinDir%\Microsoft.NET\Framework64\v2.0.50727\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET20_Optimize3 /SC ONLOGON /IT"
 )
 
-if exist "C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe" (
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
-	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET40_Optimize3 /SC ONLOGON /IT"
+if exist "%WinDir%\Microsoft.NET\Framework\v4.0.30319\ngen.exe" (
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize1" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min %WinDir%\Microsoft.NET\Framework\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN NETOptimize2 /SC ONLOGON /IT"
+	reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "DOTNET40_Optimize2" /t REG_SZ /f /d "schtasks.exe /Create /Delay 0000:02 /TR \"cmd /c start /min %WinDir%\Microsoft.NET\Framework64\v4.0.30319\ngen.exe ExecuteQueuedItems\" /RU Administrator /TN DOTNET40_Optimize3 /SC ONLOGON /IT"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64 Critical"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 64"
 	schtasks.exe /Change /DISABLE /TN "\Microsoft\Windows\.NET Framework\.NET Framework NGEN v4.0.30319 Critical"
@@ -612,6 +624,11 @@ if %run_markc_mousefix%==1 (
 )
 if %z-disable_script_host%==1 (
 	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /on
+)
+if %z-disable_tcp_nagle%==1 (
+	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*' -Name TcpAckFrequency -Value 1"
+	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*' -Name TcpDelAckTicks -Value 0"
+	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*' -Name TCPNoDelay -Value 1"
 )
 
 :: Turn off Game DVR; gets rid of "You'll need a new app to open this ms-gamingoverlay" on LTSC 2019
