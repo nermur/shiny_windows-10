@@ -323,7 +323,7 @@ if %delete_windows_security%==1 (
 	icacls.exe "C:\Program Files\Windows Defender\*" /grant:r %username%:F
 	rmdir /S /Q "C:\Program Files\Windows Defender"
 
-	takeown /d Y /s %computername% /u %username% /f "C:\Program Files\Windows Defender Advanced Threat Protection" /R /d Y
+	takeown /d Y /s %computername% /u %username% /f "C:\Program Files\Windows Defender Advanced Threat Protection" /R
 	icacls.exe "C:\Program Files\Windows Defender Advanced Threat Protection" /grant:r %username%:F
 	rmdir /S /Q "C:\Program Files\Windows Defender Advanced Threat Protection"
 
@@ -620,11 +620,11 @@ if %disable_bluetooth_audio_support%==1 (
 	reg.exe add "HKLM\SYSTEM\CurrentControlSet\Services\BthAvctpSvc" /v "Start" /t REG_DWORD /d 4 /f
 )
 if %run_markc_mousefix%==1 (
-	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /off
+	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /on
 	start "" WScript.exe "%~dp0\MarkC_MouseFix\MarkC_Windows_10+8.x+7+Vista+XP_MouseFix_Builder.vbs"
 )
 if %z_disable_script_host%==1 (
-	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /on
+	start /wait "" "%~dp0\Symantec\noscript.exe" /silent /off
 )
 if %z_disable_tcp_nagle%==1 (
 	powershell.exe -Command "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\*' -Name TcpAckFrequency -Value 1"
