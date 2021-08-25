@@ -59,12 +59,15 @@ reg.exe query HKU\S-1-5-19 || (
 )
 
 for /f "tokens=4-7 delims=[.] " %%i in ('ver') do @(if %%i==Version (echo %%j.%%k.%%l) else (echo %%i.%%j.%%k))
-if NOT %%Version%%==10.0.17763(
+if NOT "%Version%"=="10.0.17763" (
 	echo Windows build must be 10.0.17763 (version 1809)
 	echo If you override this check to use the script on non-supported versions, expect BSODs on every boot
 	echo Press any key to exit...
 	Pause>nul
 	exit /b
+else (
+	REM
+	)
 )
 
 REM If there was a scheduled reboot, deny it from now and in the future.
@@ -90,7 +93,7 @@ sc.exe start StorSvc
 
 REM Required for System Restore functionality
 net start VSS
-rstrui.exe /offline:C:\windows=active
+powershell.exe -Command "Enable-ComputerRestore -Drive 'C:\'"
 
 cls
 echo ==== Instructions ====
