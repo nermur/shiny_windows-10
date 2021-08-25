@@ -58,6 +58,15 @@ reg.exe query HKU\S-1-5-19 || (
 	exit /b
 )
 
+for /f "tokens=4-7 delims=[.] " %%i in ('ver') do @(if %%i==Version (echo %%j.%%k.%%l) else (echo %%i.%%j.%%k))
+if NOT %%Version%%==10.0.17763(
+	echo Windows build must be 10.0.17763 (version 1809)
+	echo If you override this check to use the script on non-supported versions, expect BSODs on every boot
+	echo Press any key to exit...
+	Pause>nul
+	exit /b
+)
+
 REM If there was a scheduled reboot, deny it from now and in the future.
 takeown /R /F /d Y %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator
 del /F /S /Q %WinDir%\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\*
@@ -78,6 +87,10 @@ sc.exe start AppXSvc
 sc.exe start ClipSVC
 sc.exe start MpsSvc
 sc.exe start StorSvc
+
+REM Required for System Restore functionality
+net start VSS
+rstrui.exe /offline:C:\windows=active
 
 cls
 echo ==== Instructions ====
