@@ -417,7 +417,7 @@ REM Unhide lots of Power Plan options
 powershell.exe -Command ".\enable-all-advanced-power-settings.ps1 | Out-File powercfg.ps1 | .\powercfg.ps1"
 
 REM Bitsum Highest Performance profile cannot install if any Power Plans were previously removed
-powercfg –restoredefaultschemes
+powercfg -restoredefaultschemes
 REM Sleep mode achieves the same goal while not hammering the primary hard drive, but will break in power outages/surges; regardless, leaving a PC unattended is bad
 powercfg.exe /hibernate off
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /V HiberbootEnabled /T REG_DWORD /D 0 /F
