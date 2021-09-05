@@ -419,7 +419,8 @@ powershell.exe -Command ".\enable-all-advanced-power-settings.ps1 | Out-File pow
 REM Bitsum Highest Performance profile cannot install if any Power Plans were previously removed
 powercfg -restoredefaultschemes
 REM Sleep mode achieves the same goal while not hammering the primary hard drive, but will break in power outages/surges; regardless, leaving a PC unattended is bad
-powercfg.exe /hibernate off
+REM Also fixes "Fast startup" problems by disabling it
+powercfg.exe /hibernate on
 reg.exe add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power" /V HiberbootEnabled /T REG_DWORD /D 0 /F
 
 REM Increasing overall system latency/DPC for the sake of minimal power saving is bad
